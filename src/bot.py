@@ -15,7 +15,10 @@ from typing import Callable
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-from .analyze import analyze_video
+if __package__:
+    from .analyze import analyze_video
+else:
+    from analyze import analyze_video
 
 logger = logging.getLogger(__name__)
 
