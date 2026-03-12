@@ -1,0 +1,17 @@
+# Environment
+.env
+
+# Python cache/bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Local ML weights and large media artifacts
+*.pt
+*.mp4
+*.part
+
+# Tooling
+.pytest_cache/
