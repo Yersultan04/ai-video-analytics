@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Callable
 
 from telegram import Update
+from telegram.error import BadRequest, NetworkError, TimedOut
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 if __package__:
@@ -27,6 +29,12 @@ async def _edit_progress_message(status_message, pct: int) -> None:
     """Update a Telegram status message with current analysis progress."""
     try:
         await status_message.edit_text(f"🧠 Анализирую... {pct}%")
+    except BadRequest as exc:  # Telegram rejects edits with unchanged content
+        if "Message is not modified" in str(exc):
+            return
+        logger.exception("Failed to update progress message")
+    except (TimedOut, NetworkError):  # transient Telegram/API networking issues
+        logger.warning("Progress update skipped due to temporary Telegram network error")
     except Exception:  # best effort progress update
         logger.exception("Failed to update progress message")
 
@@ -38,7 +46,16 @@ def _build_threadsafe_progress_callback(
 ) -> Callable[[int], None]:
     """Return a progress callback safe to call from worker threads."""
 
+    state = {"last_pct": None}
+    state_lock = threading.Lock()
+
     def on_progress(pct: int) -> None:
+        pct = max(0, min(100, int(pct)))
+        with state_lock:
+            if state["last_pct"] == pct:
+                return
+            state["last_pct"] = pct
+
         asyncio.run_coroutine_threadsafe(
             _edit_progress_message(status_message, pct),
             loop,
